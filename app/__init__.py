@@ -1,1 +1,0 @@
-"""AccessWeather application package."""
