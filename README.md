@@ -1,56 +1,51 @@
 # AccessWeather
 
-Add-on para o leitor de tela [NVDA](https://www.nvaccess.org/) que anuncia as
-condições atuais e a previsão do tempo usando a API
-[Open-Meteo](https://open-meteo.com/), sem chave de API.
+An add-on for the [NVDA](<https://www.nvaccess.org/>) screen reader that announces current weather conditions and forecasts using the [Open-Meteo](<https://open-meteo.com/>) API, with no API key required.
 
-## Instalação
+## Installation
 
-- Pela **Add-on Store** do NVDA (Ferramentas → Loja de complementos), ou
-- Baixando o `.nvda-addon` na aba
-  [Releases](https://github.com/tadeujrtec/AccessWeather/releases) e abrindo o
-  arquivo.
+- Through the NVDA **Add-on Store** (Tools → Add-on Store), or
+- By downloading the `.nvda-addon` file from the [Releases](<https://github.com/tadeujrtec/AccessWeather/releases>) tab and opening it.
 
-## Uso
+## Usage
 
-Atalho único: `NVDA + Shift + W`, tocado uma ou mais vezes:
+Single shortcut: `NVDA + Shift + W`, pressed one or more times:
 
-| Toques | Ação |
-|---|---|
-| 1x | Anuncia o clima atual do local padrão |
-| 2x | Lista das próximas 24 horas |
-| 3x | Lista dos próximos dias |
-| 4x | Abre as configurações do NVDA em AccessWeather |
-| 5x | Liga/desliga os anúncios personalizados do local |
+| Presses | Action |
+| --- | --- |
+| 1x | Announces the current weather for the default location |
+| 2x | Lists the next 24 hours |
+| 3x | Lists the upcoming days |
+| 4x | Opens the AccessWeather settings in NVDA |
+| 5x | Enables/disables custom location announcements |
 
-O tempo de multi-toque é o mesmo configurado no NVDA. Só a ação do número final
-de toques dispara.
+The multi-press timeout is the same as the one configured in NVDA. Only the action corresponding to the final number of presses is triggered.
 
-## Recursos
+## Features
 
-- Locais salvos, com local padrão, reordenação e busca por nome.
-- Campos de anúncio personalizáveis e reordenáveis por local (`Alt+setas`);
-  `F2` lê o valor do campo selecionado para o local escolhido.
-- Anúncios automáticos por local, em intervalo ajustável (1 a 360 minutos).
-- Sequências de beeps por local e beeps globais antes do anúncio de 1 toque.
-- Cache offline e formatação em português.
-- Velocidade e direção do vento (rosa dos ventos de 8 pontos).
-- Rajadas de vento, nebulosidade, visibilidade e pressão atmosférica.
-- Índice UV com classificação e qualidade do ar (AQI e PM2.5).
-- Chuva contínua, pancadas e horas de chuva no dia.
-- Nascer e pôr do sol, nascer e pôr da lua e fase da lua nos anúncios.
-- Horas de sol, duração do dia e sensação máxima e mínima.
-- Unidades (métrico/imperial), vento, formato de hora e de data configuráveis.
-- Janela de novidades uma vez por versão (com opção de desligar e botão para reler).
+- Saved locations, including a default location, reordering, and name-based search.
+- Customizable announcement fields that can be reordered for each location (`Alt+Arrow keys`); `F2` reads the value of the selected field for the chosen location.
+- Automatic announcements for each location at configurable intervals (1 to 360 minutes).
+- Location-specific beep sequences and global beeps before the single-press announcement.
+- Offline cache and Portuguese-language formatting.
+- Wind speed and direction (8-point compass rose).
+- Wind gusts, cloud cover, visibility, and atmospheric pressure.
+- UV index with classification and air quality (AQI and PM2.5).
+- Continuous rain, showers, and hours of rainfall during the day.
+- Sunrise and sunset, moonrise and moonset, and moon phase included in announcements.
+- Sunshine hours, day length, and maximum and minimum feels-like temperatures.
+- Configurable units (metric/imperial), wind units, and time and date formats.
+- A What's New window displayed once per version, with an option to disable it and a button to read it again.
 
-## Dados
+## Data
 
-O add-on guarda tudo em `%APPDATA%\nvda\accessWeather\` (`settings.json`,
-`locations.json` e `cache.json`).
+The add-on stores all data in `%APPDATA%\nvda\accessWeather\` (`settings.json`, `locations.json`, and `cache.json`).
 
-## Estrutura
+## Structure
 
-```text
+text
+
+```
 addon/accessWeather/
 ├── manifest.ini
 └── globalPlugins/accessWeather/
@@ -60,6 +55,6 @@ addon/accessWeather/
     └── core/
 ```
 
-## Licença
+## License
 
-[GPL v2 ou posterior](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
+[GPL v2 or later](<https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>).
