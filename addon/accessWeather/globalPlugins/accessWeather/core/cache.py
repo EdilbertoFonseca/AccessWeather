@@ -8,7 +8,7 @@ from pathlib import Path
 from .config import data_dir
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 4
 
 
 def _parse_moment(value):
@@ -35,6 +35,13 @@ class ForecastCache:
         except (OSError, ValueError, TypeError):
             return
         if not isinstance(loaded, dict):
+            return
+        try:
+            version = int(loaded.get("version") or 0)
+        except (TypeError, ValueError):
+            version = 0
+        if version != SCHEMA_VERSION:
+            # Payloads de versões antigas podem não ter os campos atuais.
             return
         entries = loaded.get("entries")
         if not isinstance(entries, dict):

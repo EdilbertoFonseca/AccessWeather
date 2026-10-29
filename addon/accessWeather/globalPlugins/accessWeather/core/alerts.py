@@ -9,6 +9,7 @@ from .formatting import (
     format_precipitation,
     format_temperature,
     format_time,
+    format_uv,
     format_wind,
 )
 from .weather import code_severity
@@ -34,6 +35,18 @@ ALERT_METRICS = {
         "scope": "hourly",
         "unit": "wind",
         "field": "wind_speed",
+    },
+    "wind_gusts": {
+        "label": "Rajadas de vento",
+        "scope": "hourly",
+        "unit": "wind",
+        "field": "wind_gusts",
+    },
+    "uv_index": {
+        "label": "Índice UV",
+        "scope": "hourly",
+        "unit": "uv",
+        "field": "uv_index",
     },
     "precipitation": {
         "label": "Chuva na hora",
@@ -82,6 +95,18 @@ ALERT_METRICS = {
         "scope": "daily",
         "unit": "wind",
         "field": "wind_speed_max",
+    },
+    "daily_wind_gusts_max": {
+        "label": "Rajadas máximas do dia",
+        "scope": "daily",
+        "unit": "wind",
+        "field": "wind_gusts_max",
+    },
+    "daily_uv_index_max": {
+        "label": "UV máximo do dia",
+        "scope": "daily",
+        "unit": "uv",
+        "field": "uv_index_max",
     },
     "severe_weather": {
         "label": "Tempo severo",
@@ -237,6 +262,8 @@ def format_value(metric, value, symbols) -> str:
         return format_precipitation(value, symbols["precipitation"])
     if unit == "percent":
         return format_percent(value)
+    if unit == "uv":
+        return format_uv(value)
     if unit == "severity":
         return severity_label(value)
     return f"{value:g}"

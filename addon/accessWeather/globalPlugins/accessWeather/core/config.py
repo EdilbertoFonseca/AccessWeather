@@ -47,13 +47,34 @@ WEATHER_NOTIFICATION_FIELDS = {
     "temperature": "Temperatura",
     "condition": "Condição do tempo",
     "apparent_temperature": "Sensação térmica",
-    "wind_speed": "Vento",
+    "wind_speed": "Vento (velocidade e direção)",
+    "wind_gusts": "Rajadas de vento",
     "humidity": "Umidade",
     "precipitation": "Chuva na hora",
+    "rain": "Chuva contínua",
+    "showers": "Pancadas",
     "precipitation_probability": "Chance de chuva",
+    "cloud_cover": "Nebulosidade",
+    "visibility": "Visibilidade",
+    "pressure": "Pressão atmosférica",
+    "uv_index": "Índice UV",
+    "air_quality": "Qualidade do ar (AQI)",
+    "pm2_5": "PM2.5",
     "daily_precipitation": "Chuva esperada no dia",
+    "precipitation_hours": "Horas de chuva no dia",
     "daily_max": "Máxima do dia",
     "daily_min": "Mínima do dia",
+    "apparent_max": "Sensação máxima do dia",
+    "apparent_min": "Sensação mínima do dia",
+    "wind_gusts_max": "Rajadas máximas do dia",
+    "uv_index_max": "UV máximo do dia",
+    "sunshine_duration": "Horas de sol",
+    "daylight_duration": "Duração do dia",
+    "sunrise": "Nascer do sol",
+    "sunset": "Pôr do sol",
+    "moonrise": "Nascer da lua",
+    "moonset": "Pôr da lua",
+    "moon_phase": "Fase da lua",
     "observation_time": "Hora da leitura",
 }
 
@@ -115,12 +136,14 @@ UNIT_GROUPS = {
         "temperature": "celsius",
         "wind": "kmh",
         "precipitation": "mm",
+        "visibility": "km",
     },
     "imperial": {
         "label": "Imperial (°F, mph, inch)",
         "temperature": "fahrenheit",
         "wind": "mph",
         "precipitation": "inch",
+        "visibility": "mi",
     },
 }
 
@@ -171,7 +194,9 @@ DEFAULTS = {
     "notifications": DEFAULT_NOTIFICATIONS,
     "toast_app_name": "AccessWeather",
     "last_update_check": "",
+    # Versão cujas novidades já foram mostradas; vazio = primeira instalação.
     "installed_version": "",
+    "show_whats_new": True,
     "update_pending_note": "",
 }
 
@@ -217,6 +242,7 @@ def unit_symbols(settings) -> dict:
         "temperature": TEMPERATURE_SYMBOLS.get(codes["temperature"], "°C"),
         "wind": WIND_SYMBOLS.get(codes["wind"], "km/h"),
         "precipitation": PRECIPITATION_SYMBOLS.get(codes["precipitation"], "mm"),
+        "visibility": codes.get("visibility", "km"),
     }
 
 

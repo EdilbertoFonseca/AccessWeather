@@ -22,20 +22,25 @@ except Exception:  # fora do NVDA (testes offline)
 
 from .core.beeps import DEFAULT_BEEP_SEQUENCE, normalize_sequence
 from .core.cache import ForecastCache
+from .core.changelog import current_news, news_for, version_key
 from .core.config import (
     DEFAULT_NOTIFICATION_FIELDS,
     Settings,
     unit_codes,
     unit_symbols,
 )
-from .core.formatting import day_text, hour_text, notification_body
+from .core.formatting import day_text, field_text, hour_text, notification_body
 from .core.locations import LocationStore
 from .core.weather import (
     WeatherError,
     fetch_forecast_payload,
     parse_forecast,
 )
-from .dialogs import AccessWeatherSettingsPanel, WeatherListDialog
+from .dialogs import (
+    AccessWeatherSettingsPanel,
+    WeatherListDialog,
+    WhatsNewDialog,
+)
 from .playback import BeepSequencer
 
 
@@ -51,6 +56,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         self._list_dialog = None
         self._repeat_timer = None
         self._last_notify = {}
+        self._field_preview_running = False
+        self._whats_new_timer = None
         self._sequencer = BeepSequencer()
         self._notify_timer = wx.PyTimer(self._on_notify_timer)
         self._notify_timer.Start(60000)
@@ -62,12 +69,19 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             NVDASettingsDialog.categoryClasses.append(
                 AccessWeatherSettingsPanel
             )
+        self._schedule_whats_new()
 
     def terminate(self):
         try:
             self._notify_timer.Stop()
         except Exception:
             pass
+        if self._whats_new_timer is not None:
+            try:
+                self._whats_new_timer.Stop()
+            except Exception:
+                pass
+            self._whats_new_timer = None
         try:
             self._sequencer.stop()
         except Exception:
@@ -92,6 +106,109 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             except ValueError:
                 pass
         AccessWeatherSettingsPanel.plugin = None
+
+    # -- novidades da versão -----------------------------------------------
+
+    @staticmethod
+    def _addon_version():
+        """Versão do manifest.ini, lida em tempo de execução."""
+        try:
+            import addonHandler
+
+            addon = addonHandler.getCodeAddon()
+            if addon is not None:
+                return str(addon.manifest["version"]).strip()
+        except Exception:
+            pass
+        try:
+            from pathlib import Path
+
+            manifest = Path(__file__).resolve().parents[2] / "manifest.ini"
+            for line in manifest.read_text(encoding="utf-8").splitlines():
+                if line.strip().lower().startswith("version"):
+                    return line.split("=", 1)[1].strip().strip('"')
+        except Exception:
+            pass
+        return ""
+
+    def _schedule_whats_new(self):
+        """Agenda a janela de novidades para depois da inicialização do NVDA."""
+        try:
+            if not self._can_show_whats_new():
+                return
+            version = self._addon_version()
+            seen = str(self.settings.get("installed_version", "") or "")
+            if not version or version_key(seen) == version_key(version):
+                return
+            # Sem settings.json é a primeira instalação; com ele, é atualização.
+            self._whats_new_first_install = not self.settings.path.exists()
+            if not self.settings.get("show_whats_new", True):
+                self._mark_version_seen(version)
+                return
+            self._whats_new_timer = wx.CallLater(3000, self._on_whats_new_timer)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _can_show_whats_new():
+        """Evita a janela em modo seguro e em instalações automatizadas."""
+        try:
+            import globalVars
+
+            args = getattr(globalVars, "appArgs", None)
+            if args is None:
+                return True
+            for name in ("secure", "install", "createPortable"):
+                if getattr(args, name, False):
+                    return False
+        except Exception:
+            pass
+        return True
+
+    def _on_whats_new_timer(self):
+        self._whats_new_timer = None
+        try:
+            version = self._addon_version()
+            seen = str(self.settings.get("installed_version", "") or "")
+            if not version or version_key(seen) == version_key(version):
+                return
+            first_install = bool(getattr(self, "_whats_new_first_install", False))
+            entries = news_for(seen, version, first_install=first_install)
+            self._display_whats_new(version, entries, first_install)
+        except Exception:
+            pass
+
+    def _open_whats_new(self):
+        """Abre a janela de novidades pelo botão das configurações."""
+        version = self._addon_version()
+        if not version:
+            ui.message("Versão do add-on não encontrada.")
+            return
+        self._display_whats_new(version, current_news(version), False)
+
+    def _display_whats_new(self, version, entries, first_install):
+        if not entries:
+            return
+        parent = getattr(gui, "mainFrame", None) or wx.GetApp().GetTopWindow()
+        try:
+            dialog = WhatsNewDialog(parent, version, entries, first_install)
+        except Exception:
+            return
+        try:
+            dialog.ShowModal()
+        finally:
+            try:
+                dialog.Destroy()
+            except Exception:
+                pass
+        self._mark_version_seen(version)
+
+    def _mark_version_seen(self, version):
+        self.settings["installed_version"] = version
+        try:
+            self.settings.save()
+        except OSError:
+            pass
 
     # -- utilidades --------------------------------------------------------
 
@@ -382,12 +499,48 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             target=self._notify_worker, args=([location],), daemon=True
         ).start()
 
+    # -- prévia de um campo (F2 nas listas de campos) ----------------------
+
+    def _announce_field(self, location, field):
+        """Lê um único campo do anúncio para o local indicado."""
+        if self._field_preview_running:
+            ui.message("Aguarde, ainda buscando os dados.")
+            return
+        self._field_preview_running = True
+        threading.Thread(
+            target=self._field_worker, args=(location, field), daemon=True
+        ).start()
+
+    def _field_worker(self, location, field):
+        try:
+            if self.settings.get("announce_fetching", False):
+                wx.CallAfter(
+                    ui.message,
+                    f"Buscando previsão para {location.display_name}, aguarde...",
+                )
+            forecast = self._forecast_for(location)
+            if forecast is None:
+                return
+            text = field_text(
+                field,
+                forecast,
+                unit_symbols(self.settings),
+                self.settings.get("time_format", "24h"),
+            )
+            wx.CallAfter(
+                ui.message,
+                text or "Sem dados para este campo no momento.",
+            )
+        finally:
+            self._field_preview_running = False
+
     # -- configurações -----------------------------------------------------
 
     def _open_settings(self):
         if NVDASettingsDialog is None:
             ui.message("Configurações do NVDA indisponíveis.")
             return
-        gui.mainFrame._popupSettingsDialog(
-            NVDASettingsDialog, AccessWeatherSettingsPanel
-        )
+        popup = getattr(gui.mainFrame, "popupSettingsDialog", None)
+        if popup is None:
+            popup = gui.mainFrame._popupSettingsDialog
+        popup(NVDASettingsDialog, AccessWeatherSettingsPanel)

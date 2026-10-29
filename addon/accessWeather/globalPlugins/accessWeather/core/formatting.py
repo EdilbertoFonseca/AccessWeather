@@ -89,6 +89,129 @@ def format_wind(value, symbol="", direction=None) -> str:
     return ", ".join(parts)
 
 
+UV_LEVELS = (
+    (2, "baixo"),
+    (5, "moderado"),
+    (7, "alto"),
+    (10, "muito alto"),
+    (None, "extremo"),
+)
+
+AQI_LEVELS = (
+    (50, "bom"),
+    (100, "moderado"),
+    (150, "ruim para grupos sensíveis"),
+    (200, "ruim"),
+    (300, "muito ruim"),
+    (None, "perigoso"),
+)
+
+
+def _numbered(value):
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def uv_level(value) -> str:
+    number = _numbered(value)
+    if number is None:
+        return ""
+    level = int(round(number))
+    for limit, name in UV_LEVELS:
+        if limit is None or level <= limit:
+            return name
+    return ""
+
+
+def aqi_level(value) -> str:
+    number = _numbered(value)
+    if number is None:
+        return ""
+    level = int(round(number))
+    for limit, name in AQI_LEVELS:
+        if limit is None or level <= limit:
+            return name
+    return ""
+
+
+def format_uv(value) -> str:
+    text = _number(value, 0)
+    if text == DASH:
+        return DASH
+    name = uv_level(value)
+    return f"{text} ({name})" if name else text
+
+
+def format_air_quality(value) -> str:
+    text = _number(value, 0)
+    if text == DASH:
+        return DASH
+    name = aqi_level(value)
+    return f"{text} ({name})" if name else text
+
+
+def format_pm25(value) -> str:
+    text = _number(value, 1)
+    if text == DASH:
+        return DASH
+    return f"{text} µg/m³"
+
+
+def format_visibility(value, symbol="km") -> str:
+    number = _numbered(value)
+    if number is None:
+        return DASH
+    amount = number / 1609.344 if symbol == "mi" else number / 1000.0
+    digits = 1 if amount < 10 else 0
+    return f"{amount:.{digits}f} {symbol}".strip()
+
+
+def format_pressure(value) -> str:
+    text = _number(value, 0)
+    if text == DASH:
+        return DASH
+    return f"{text} hPa"
+
+
+def format_duration(value) -> str:
+    """Segundos do Open-Meteo em horas e minutos (ex.: 6h 20min)."""
+    number = _numbered(value)
+    if number is None:
+        return DASH
+    minutes = int(round(number)) // 60
+    hours, minutes = divmod(max(0, minutes), 60)
+    if minutes:
+        return f"{hours}h {minutes}min"
+    return f"{hours}h"
+
+
+MOON_PHASES = (
+    "nova",
+    "crescente",
+    "quarto crescente",
+    "crescente gibosa",
+    "cheia",
+    "minguante gibosa",
+    "quarto minguante",
+    "minguante",
+)
+
+
+def moon_phase_name(value) -> str:
+    """Nome da fase da lua a partir da fração do ciclo (0 = nova, 0.5 = cheia)."""
+    if value is None or isinstance(value, bool):
+        return ""
+    try:
+        fraction = float(value) % 1.0
+    except (TypeError, ValueError):
+        return ""
+    return MOON_PHASES[int((fraction + 0.0625) // 0.125) % 8]
+
+
 def format_precipitation(value, symbol="", digits=1) -> str:
     text = _number(value, digits)
     if text == DASH:
@@ -294,7 +417,106 @@ def _notification_part(field, forecast, symbols, time_format="24h"):
         if isinstance(moment, datetime):
             return f"Hora: {format_time(moment, time_format)}"
         return ""
+    if field == "sunrise":
+        text = format_time(day.sunrise, time_format) if day else DASH
+        return f"Nascer do sol: {text}" if text != DASH else ""
+    if field == "sunset":
+        text = format_time(day.sunset, time_format) if day else DASH
+        return f"Pôr do sol: {text}" if text != DASH else ""
+    if field == "moonrise":
+        text = format_time(day.moonrise, time_format) if day else DASH
+        return f"Nascer da lua: {text}" if text != DASH else ""
+    if field == "moonset":
+        text = format_time(day.moonset, time_format) if day else DASH
+        return f"Pôr da lua: {text}" if text != DASH else ""
+    if field == "moon_phase":
+        text = moon_phase_name(day.moon_phase) if day else ""
+        return f"Fase da lua: {text}" if text else ""
+    if field == "wind_gusts":
+        text = format_wind(current.wind_gusts, symbols["wind"]) if current else DASH
+        return f"Rajadas de vento: {text}" if text != DASH else ""
+    if field == "rain":
+        text = (
+            format_precipitation(current.rain, symbols["precipitation"])
+            if current else DASH
+        )
+        return f"Chuva contínua: {text}" if text != DASH else ""
+    if field == "showers":
+        text = (
+            format_precipitation(current.showers, symbols["precipitation"])
+            if current else DASH
+        )
+        return f"Pancadas: {text}" if text != DASH else ""
+    if field == "uv_index":
+        text = format_uv(current.uv_index) if current else DASH
+        return f"Índice UV: {text}" if text != DASH else ""
+    if field == "visibility":
+        text = (
+            format_visibility(
+                current.visibility, symbols.get("visibility", "km")
+            ) if current else DASH
+        )
+        return f"Visibilidade: {text}" if text != DASH else ""
+    if field == "pressure":
+        text = format_pressure(current.pressure) if current else DASH
+        return f"Pressão: {text}" if text != DASH else ""
+    if field == "cloud_cover":
+        text = format_percent(current.cloud_cover) if current else DASH
+        return f"Nebulosidade: {text}" if text != DASH else ""
+    if field == "air_quality":
+        text = format_air_quality(current.air_quality) if current else DASH
+        return f"Qualidade do ar: {text}" if text != DASH else ""
+    if field == "pm2_5":
+        text = format_pm25(current.pm2_5) if current else DASH
+        return f"PM2.5: {text}" if text != DASH else ""
+    if field == "wind_gusts_max":
+        text = (
+            format_wind(day.wind_gusts_max, symbols["wind"]) if day else DASH
+        )
+        return f"Rajadas máximas do dia: {text}" if text != DASH else ""
+    if field == "apparent_max":
+        text = (
+            format_temperature(day.apparent_max, symbols["temperature"])
+            if day else DASH
+        )
+        return f"Sensação máxima do dia: {text}" if text != DASH else ""
+    if field == "apparent_min":
+        text = (
+            format_temperature(day.apparent_min, symbols["temperature"])
+            if day else DASH
+        )
+        return f"Sensação mínima do dia: {text}" if text != DASH else ""
+    if field == "rain_sum":
+        text = (
+            format_precipitation(day.rain_sum, symbols["precipitation"])
+            if day else DASH
+        )
+        return f"Chuva contínua no dia: {text}" if text != DASH else ""
+    if field == "showers_sum":
+        text = (
+            format_precipitation(day.showers_sum, symbols["precipitation"])
+            if day else DASH
+        )
+        return f"Pancadas no dia: {text}" if text != DASH else ""
+    if field == "precipitation_hours":
+        text = _number(day.precipitation_hours, 0) if day else DASH
+        return f"Horas de chuva no dia: {text} h" if text != DASH else ""
+    if field == "uv_index_max":
+        text = format_uv(day.uv_index_max) if day else DASH
+        return f"UV máximo do dia: {text}" if text != DASH else ""
+    if field == "sunshine_duration":
+        text = format_duration(day.sunshine_duration) if day else DASH
+        return f"Horas de sol: {text}" if text != DASH else ""
+    if field == "daylight_duration":
+        text = format_duration(day.daylight_duration) if day else DASH
+        return f"Duração do dia: {text}" if text != DASH else ""
     return ""
+
+
+def field_text(field, forecast, symbols, time_format="24h") -> str:
+    """Texto de um único campo do anúncio, usado pela prévia com F2."""
+    text = _notification_part(field, forecast, symbols, time_format)
+    return text if text and text != DASH else ""
 
 
 def notification_body(location, forecast, fields, symbols, time_format="24h") -> str:

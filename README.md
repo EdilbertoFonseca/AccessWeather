@@ -29,12 +29,19 @@ de toques dispara.
 ## Recursos
 
 - Locais salvos, com local padrão, reordenação e busca por nome.
-- Campos de anúncio personalizáveis e reordenáveis por local (`Alt+setas`).
+- Campos de anúncio personalizáveis e reordenáveis por local (`Alt+setas`);
+  `F2` lê o valor do campo selecionado para o local escolhido.
 - Anúncios automáticos por local, em intervalo ajustável (1 a 360 minutos).
 - Sequências de beeps por local e beeps globais antes do anúncio de 1 toque.
 - Cache offline e formatação em português.
 - Velocidade e direção do vento (rosa dos ventos de 8 pontos).
+- Rajadas de vento, nebulosidade, visibilidade e pressão atmosférica.
+- Índice UV com classificação e qualidade do ar (AQI e PM2.5).
+- Chuva contínua, pancadas e horas de chuva no dia.
+- Nascer e pôr do sol, nascer e pôr da lua e fase da lua nos anúncios.
+- Horas de sol, duração do dia e sensação máxima e mínima.
 - Unidades (métrico/imperial), vento, formato de hora e de data configuráveis.
+- Janela de novidades uma vez por versão (com opção de desligar e botão para reler).
 
 ## Dados
 

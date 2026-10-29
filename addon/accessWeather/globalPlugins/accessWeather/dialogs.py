@@ -136,6 +136,85 @@ class SearchLocationDialog(wx.Dialog):
             ui.message("Pesquise e selecione um local primeiro.")
 
 
+class WhatsNewDialog(wx.Dialog):
+    """Resumo das novidades de uma ou mais versões, para ler com calma."""
+
+    def __init__(self, parent, version, entries, first_install=False):
+        title = (
+            "Bem-vindo ao AccessWeather"
+            if first_install
+            else f"Novidades do AccessWeather {version}"
+        )
+        super().__init__(
+            parent,
+            title=title,
+            size=(620, 540),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        panel = wx.Panel(self)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        if first_install:
+            heading = (
+                f"Bem-vindo ao AccessWeather {version}! "
+                "Atalho principal: NVDA+Shift+W."
+            )
+        else:
+            heading = (
+                f"Atualizado para a versão {version}. Resumo do que mudou:"
+            )
+        sizer.Add(wx.StaticText(panel, label=heading), 0, wx.ALL, 12)
+        self.text = wx.TextCtrl(
+            panel,
+            value=self._build_text(version, entries, first_install),
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+            name="Novidades",
+        )
+        sizer.Add(self.text, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        close_button = wx.Button(panel, wx.ID_OK, "&OK")
+        close_button.SetDefault()
+        buttons.Add(close_button, 0)
+        sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 12)
+
+        panel.SetSizer(sizer)
+        close_button.Bind(wx.EVT_BUTTON, self._on_ok)
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
+        self.text.SetInsertionPoint(0)
+        self.text.SetFocus()
+
+    @staticmethod
+    def _build_text(version, entries, first_install):
+        lines = []
+        if first_install:
+            lines.extend(
+                (
+                    "Atalho NVDA+Shift+W: um toque anuncia o clima atual, dois "
+                    "as próximas horas, três os próximos dias e quatro abre as "
+                    "configurações do AccessWeather.",
+                    "",
+                )
+            )
+        for entry_version, bullets in entries or ():
+            lines.append(f"Versão {entry_version}")
+            lines.extend(f"- {bullet}" for bullet in bullets)
+            lines.append("")
+        lines.append(
+            "Para rever este resumo, abra Preferências, Configurações, "
+            "AccessWeather e use o botão Novidades desta versão."
+        )
+        return "\n".join(lines).strip()
+
+    def _on_ok(self, event):
+        self.EndModal(wx.ID_OK)
+
+    def _on_char_hook(self, event):
+        if event.GetKeyCode() in (wx.WXK_ESCAPE, wx.WXK_RETURN):
+            self.EndModal(wx.ID_OK)
+            return
+        event.Skip()
+
+
 class AccessWeatherSettingsPanel(SettingsPanel):
     """Página de configurações do AccessWeather dentro do NVDA."""
 
@@ -154,6 +233,7 @@ class AccessWeatherSettingsPanel(SettingsPanel):
         self.store = plugin.store
         self.sequencer = BeepSequencer()
         self.tester = plugin._test_announcement
+        self.field_previewer = getattr(plugin, "_announce_field", None)
         self._locations = list(self.store.locations)
         self._default_key = self.store.default_key
 
@@ -196,7 +276,7 @@ class AccessWeatherSettingsPanel(SettingsPanel):
         sizer.Add(
             wx.StaticText(
                 panel,
-                label="O que anunciar; Alt+setas muda a ordem:",
+                label="O que anunciar; Alt+setas muda a ordem; F2 lê o valor:",
             ),
             0, wx.LEFT | wx.RIGHT, 5,
         )
@@ -246,6 +326,19 @@ class AccessWeatherSettingsPanel(SettingsPanel):
         )
         self.fetching_check.SetValue(bool(settings.get("announce_fetching", False)))
         sizer.Add(self.fetching_check, 0, wx.ALL, 5)
+
+        self.whats_new_check = wx.CheckBox(
+            panel,
+            label="Mostrar novidades ao iniciar depois de uma atualização",
+        )
+        self.whats_new_check.SetValue(bool(settings.get("show_whats_new", True)))
+        sizer.Add(self.whats_new_check, 0, wx.ALL, 5)
+
+        self.whats_new_button = wx.Button(
+            self, label="&Novidades desta versão..."
+        )
+        self.whats_new_button.Bind(wx.EVT_BUTTON, self._on_whats_new)
+        sizer.Add(self.whats_new_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
 
         self.beeps_check = wx.CheckBox(
             self,
@@ -424,6 +517,7 @@ class AccessWeatherSettingsPanel(SettingsPanel):
             self.store,
             sequencer=self.sequencer,
             tester=self.tester,
+            field_tester=self.field_previewer,
         )
         try:
             if dialog.ShowModal() == wx.ID_OK:
@@ -433,6 +527,13 @@ class AccessWeatherSettingsPanel(SettingsPanel):
         ui.message(
             f"Anúncio personalizado de {location.display_name} atualizado."
         )
+
+    def _on_whats_new(self, event):
+        opener = getattr(self.plugin, "_open_whats_new", None)
+        if opener is None:
+            ui.message("Novidades indisponíveis.")
+            return
+        opener()
 
     # -- beeps do anúncio atual --------------------------------------------
 
@@ -462,10 +563,29 @@ class AccessWeatherSettingsPanel(SettingsPanel):
 
     def _on_fields_key(self, event):
         code = event.GetKeyCode()
+        if code == wx.WXK_F2:
+            self._preview_field()
+            return
         if event.AltDown() and code in (wx.WXK_UP, wx.WXK_DOWN):
             self._move_field(-1 if code == wx.WXK_UP else 1)
             return
         event.Skip()
+
+    def _preview_field(self):
+        index = self.fields_list.GetSelection()
+        if index < 0 or index >= len(self._field_keys):
+            ui.message("Selecione um campo para ouvir o valor.")
+            return
+        location_index = self._selected_index()
+        if location_index < 0:
+            ui.message("Selecione um local para ouvir o valor do campo.")
+            return
+        if self.field_previewer is None:
+            ui.message("Prévia do campo indisponível.")
+            return
+        self.field_previewer(
+            self._locations[location_index], self._field_keys[index]
+        )
 
     def _move_field(self, offset):
         index = self.fields_list.GetSelection()
@@ -511,6 +631,7 @@ class AccessWeatherSettingsPanel(SettingsPanel):
         self.settings["date_format"] = self._combo_key(self.date_combo) or "dmy"
         self.settings["daily_days"] = int(self.days_spin.GetValue())
         self.settings["announce_fetching"] = bool(self.fetching_check.GetValue())
+        self.settings["show_whats_new"] = bool(self.whats_new_check.GetValue())
         self.settings["beeps_on_announce"] = bool(self.beeps_check.GetValue())
         self.settings["beep_sequence"] = [
             dict(step) for step in self._global_sequence
@@ -754,7 +875,8 @@ class WeatherNotificationDialog(wx.Dialog):
     """Edita o anúncio personalizado de clima de um local."""
 
     def __init__(
-        self, parent, location, settings, store, sequencer=None, tester=None
+        self, parent, location, settings, store, sequencer=None, tester=None,
+        field_tester=None,
     ):
         super().__init__(
             parent,
@@ -767,6 +889,7 @@ class WeatherNotificationDialog(wx.Dialog):
         self.sequencer = sequencer or BeepSequencer()
         self._owns_sequencer = sequencer is None
         self.tester = tester
+        self.field_tester = field_tester
         self.sequence = normalize_sequence(location.beep_sequence)
 
         outer = wx.BoxSizer(wx.VERTICAL)
@@ -799,7 +922,7 @@ class WeatherNotificationDialog(wx.Dialog):
         outer.Add(
             wx.StaticText(
                 self,
-                label="Marque o que anunciar; use Alt+setas para mudar a ordem:",
+                label="Marque o que anunciar; Alt+setas muda a ordem; F2 lê o valor:",
             ),
             0, wx.LEFT | wx.RIGHT, 12,
         )
@@ -852,10 +975,23 @@ class WeatherNotificationDialog(wx.Dialog):
 
     def _on_list_key(self, event):
         code = event.GetKeyCode()
+        if code == wx.WXK_F2:
+            self._preview_field()
+            return
         if event.AltDown() and code in (wx.WXK_UP, wx.WXK_DOWN):
             self._move(-1 if code == wx.WXK_UP else 1)
             return
         event.Skip()
+
+    def _preview_field(self):
+        index = self.field_list.GetSelection()
+        if index < 0 or index >= len(self.keys):
+            ui.message("Selecione um campo para ouvir o valor.")
+            return
+        if self.field_tester is None:
+            ui.message("Prévia do campo indisponível.")
+            return
+        self.field_tester(self.location, self.keys[index])
 
     def _move(self, offset):
         index = self.field_list.GetSelection()

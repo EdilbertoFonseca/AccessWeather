@@ -13,6 +13,7 @@ from .config import unit_codes
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
+AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 USER_AGENT = "AccessWeather-NVDA/1.0.0 (+https://github.com/tadeujrtec/AccessWeather)"
 
 TEMPORARY_STATUS = frozenset({429, 500, 502, 503, 504})
@@ -23,22 +24,41 @@ HOURLY_FIELDS = (
     "apparent_temperature",
     "precipitation_probability",
     "precipitation",
+    "rain",
+    "showers",
     "weather_code",
     "wind_speed_10m",
     "wind_direction_10m",
+    "wind_gusts_10m",
     "relative_humidity_2m",
+    "visibility",
+    "pressure_msl",
+    "cloud_cover",
+    "uv_index",
     "is_day",
 )
 DAILY_FIELDS = (
     "weather_code",
     "temperature_2m_max",
     "temperature_2m_min",
+    "apparent_temperature_max",
+    "apparent_temperature_min",
     "sunrise",
     "sunset",
+    "moonrise",
+    "moonset",
+    "moon_phase",
     "precipitation_sum",
+    "rain_sum",
+    "showers_sum",
     "precipitation_probability_max",
+    "precipitation_hours",
     "wind_speed_10m_max",
+    "wind_gusts_10m_max",
     "wind_direction_10m_dominant",
+    "uv_index_max",
+    "sunshine_duration",
+    "daylight_duration",
 )
 CURRENT_FIELDS = (
     "temperature_2m",
@@ -46,10 +66,18 @@ CURRENT_FIELDS = (
     "weather_code",
     "wind_speed_10m",
     "wind_direction_10m",
+    "wind_gusts_10m",
     "relative_humidity_2m",
     "precipitation",
+    "rain",
+    "showers",
+    "uv_index",
+    "visibility",
+    "pressure_msl",
+    "cloud_cover",
     "is_day",
 )
+AIR_QUALITY_FIELDS = ("us_aqi", "pm2_5")
 
 MAX_FORECAST_DAYS = 16
 
@@ -203,6 +231,15 @@ class CurrentWeather:
     precipitation: float | None
     is_day: bool = True
     wind_direction: float | None = None
+    wind_gusts: float | None = None
+    rain: float | None = None
+    showers: float | None = None
+    uv_index: float | None = None
+    visibility: float | None = None
+    pressure: float | None = None
+    cloud_cover: float | None = None
+    air_quality: float | None = None
+    pm2_5: float | None = None
 
     @property
     def description(self) -> str:
@@ -225,6 +262,13 @@ class HourlyPoint:
     humidity: float | None
     is_day: bool = True
     wind_direction: float | None = None
+    wind_gusts: float | None = None
+    rain: float | None = None
+    showers: float | None = None
+    uv_index: float | None = None
+    visibility: float | None = None
+    pressure: float | None = None
+    cloud_cover: float | None = None
 
     @property
     def description(self) -> str:
@@ -243,6 +287,18 @@ class DailyPoint:
     temperature_min: float | None
     sunrise: object | None = None
     sunset: object | None = None
+    moonrise: object | None = None
+    moonset: object | None = None
+    moon_phase: float | None = None
+    apparent_max: float | None = None
+    apparent_min: float | None = None
+    rain_sum: float | None = None
+    showers_sum: float | None = None
+    precipitation_hours: float | None = None
+    wind_gusts_max: float | None = None
+    uv_index_max: float | None = None
+    sunshine_duration: float | None = None
+    daylight_duration: float | None = None
     precipitation_sum: float | None = None
     precipitation_probability_max: float | None = None
     wind_speed_max: float | None = None
@@ -396,6 +452,12 @@ def parse_forecast(payload, place=None, units=None) -> Forecast:
             return None
 
     current_block = block("current")
+    air_block = block("air_quality")
+    air_current = (
+        air_block.get("current")
+        if isinstance(air_block.get("current"), dict)
+        else {}
+    )
     current = CurrentWeather(
         time=parse_datetime(current_block.get("time")),
         temperature=number(current_block.get("temperature_2m")),
@@ -403,6 +465,15 @@ def parse_forecast(payload, place=None, units=None) -> Forecast:
         code=_as_code(current_block.get("weather_code")),
         wind_speed=number(current_block.get("wind_speed_10m")),
         wind_direction=number(current_block.get("wind_direction_10m")),
+        wind_gusts=number(current_block.get("wind_gusts_10m")),
+        rain=number(current_block.get("rain")),
+        showers=number(current_block.get("showers")),
+        uv_index=number(current_block.get("uv_index")),
+        visibility=number(current_block.get("visibility")),
+        pressure=number(current_block.get("pressure_msl")),
+        cloud_cover=number(current_block.get("cloud_cover")),
+        air_quality=number(air_current.get("us_aqi")),
+        pm2_5=number(air_current.get("pm2_5")),
         humidity=number(current_block.get("relative_humidity_2m")),
         precipitation=number(current_block.get("precipitation")),
         is_day=_as_flag(current_block.get("is_day")),
@@ -424,6 +495,13 @@ def parse_forecast(payload, place=None, units=None) -> Forecast:
             wind_direction=number(
                 series(hourly_block, "wind_direction_10m", index)
             ),
+            wind_gusts=number(series(hourly_block, "wind_gusts_10m", index)),
+            rain=number(series(hourly_block, "rain", index)),
+            showers=number(series(hourly_block, "showers", index)),
+            uv_index=number(series(hourly_block, "uv_index", index)),
+            visibility=number(series(hourly_block, "visibility", index)),
+            pressure=number(series(hourly_block, "pressure_msl", index)),
+            cloud_cover=number(series(hourly_block, "cloud_cover", index)),
             humidity=number(
                 series(hourly_block, "relative_humidity_2m", index)
             ),
@@ -444,6 +522,30 @@ def parse_forecast(payload, place=None, units=None) -> Forecast:
             ),
             sunrise=parse_datetime(series(daily_block, "sunrise", index)),
             sunset=parse_datetime(series(daily_block, "sunset", index)),
+            moonrise=parse_datetime(series(daily_block, "moonrise", index)),
+            moonset=parse_datetime(series(daily_block, "moonset", index)),
+            moon_phase=number(series(daily_block, "moon_phase", index)),
+            apparent_max=number(
+                series(daily_block, "apparent_temperature_max", index)
+            ),
+            apparent_min=number(
+                series(daily_block, "apparent_temperature_min", index)
+            ),
+            rain_sum=number(series(daily_block, "rain_sum", index)),
+            showers_sum=number(series(daily_block, "showers_sum", index)),
+            precipitation_hours=number(
+                series(daily_block, "precipitation_hours", index)
+            ),
+            wind_gusts_max=number(
+                series(daily_block, "wind_gusts_10m_max", index)
+            ),
+            uv_index_max=number(series(daily_block, "uv_index_max", index)),
+            sunshine_duration=number(
+                series(daily_block, "sunshine_duration", index)
+            ),
+            daylight_duration=number(
+                series(daily_block, "daylight_duration", index)
+            ),
             precipitation_sum=number(
                 series(daily_block, "precipitation_sum", index)
             ),
@@ -471,15 +573,39 @@ def parse_forecast(payload, place=None, units=None) -> Forecast:
     )
 
 
+def build_air_quality_params(place) -> dict:
+    return {
+        "latitude": place.latitude,
+        "longitude": place.longitude,
+        "timezone": "auto",
+        "current": ",".join(AIR_QUALITY_FIELDS),
+    }
+
+
+def fetch_air_quality_payload(place, timeout=20):
+    """Qualidade do ar é opcional: sem ela o restante do clima continua."""
+    try:
+        return request_json(
+            AIR_QUALITY_URL, build_air_quality_params(place), timeout=timeout
+        )
+    except WeatherError:
+        return None
+
+
 def fetch_forecast_payload(place, settings=None, days=None, hours=None, timeout=20) -> dict:
     """Payload cru do Open-Meteo, para guardar no cache antes de interpretar."""
     params = build_forecast_params(place, settings, days=days, hours=hours)
-    return request_json(FORECAST_URL, params, timeout=timeout)
+    payload = request_json(FORECAST_URL, params, timeout=timeout)
+    air_quality = fetch_air_quality_payload(place, timeout=timeout)
+    if isinstance(air_quality, dict):
+        payload["air_quality"] = air_quality
+    return payload
 
 
 def fetch_forecast(place, settings=None, days=None, hours=None, timeout=20) -> Forecast:
-    params = build_forecast_params(place, settings, days=days, hours=hours)
-    payload = request_json(FORECAST_URL, params, timeout=timeout)
+    payload = fetch_forecast_payload(
+        place, settings, days=days, hours=hours, timeout=timeout
+    )
     return parse_forecast(payload, place=place, units=unit_codes(settings))
 
 
