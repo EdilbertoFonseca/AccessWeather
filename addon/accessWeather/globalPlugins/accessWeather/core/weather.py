@@ -13,7 +13,7 @@ from .config import unit_codes
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
-USER_AGENT = "AccessWeather-NVDA/0.1.0 (+https://jrtec.ddns.net/accessweather)"
+USER_AGENT = "AccessWeather-NVDA/1.0.0 (+https://github.com/tadeujrtec/AccessWeather)"
 
 TEMPORARY_STATUS = frozenset({429, 500, 502, 503, 504})
 RETRY_DELAYS = (1.0, 2.0)
@@ -25,6 +25,7 @@ HOURLY_FIELDS = (
     "precipitation",
     "weather_code",
     "wind_speed_10m",
+    "wind_direction_10m",
     "relative_humidity_2m",
     "is_day",
 )
@@ -37,12 +38,14 @@ DAILY_FIELDS = (
     "precipitation_sum",
     "precipitation_probability_max",
     "wind_speed_10m_max",
+    "wind_direction_10m_dominant",
 )
 CURRENT_FIELDS = (
     "temperature_2m",
     "apparent_temperature",
     "weather_code",
     "wind_speed_10m",
+    "wind_direction_10m",
     "relative_humidity_2m",
     "precipitation",
     "is_day",
@@ -199,6 +202,7 @@ class CurrentWeather:
     humidity: float | None
     precipitation: float | None
     is_day: bool = True
+    wind_direction: float | None = None
 
     @property
     def description(self) -> str:
@@ -220,6 +224,7 @@ class HourlyPoint:
     wind_speed: float | None
     humidity: float | None
     is_day: bool = True
+    wind_direction: float | None = None
 
     @property
     def description(self) -> str:
@@ -241,6 +246,7 @@ class DailyPoint:
     precipitation_sum: float | None = None
     precipitation_probability_max: float | None = None
     wind_speed_max: float | None = None
+    wind_direction: float | None = None
 
     @property
     def description(self) -> str:
@@ -396,6 +402,7 @@ def parse_forecast(payload, place=None, units=None) -> Forecast:
         apparent_temperature=number(current_block.get("apparent_temperature")),
         code=_as_code(current_block.get("weather_code")),
         wind_speed=number(current_block.get("wind_speed_10m")),
+        wind_direction=number(current_block.get("wind_direction_10m")),
         humidity=number(current_block.get("relative_humidity_2m")),
         precipitation=number(current_block.get("precipitation")),
         is_day=_as_flag(current_block.get("is_day")),
@@ -414,6 +421,9 @@ def parse_forecast(payload, place=None, units=None) -> Forecast:
             precipitation=number(series(hourly_block, "precipitation", index)),
             code=_as_code(series(hourly_block, "weather_code", index)),
             wind_speed=number(series(hourly_block, "wind_speed_10m", index)),
+            wind_direction=number(
+                series(hourly_block, "wind_direction_10m", index)
+            ),
             humidity=number(
                 series(hourly_block, "relative_humidity_2m", index)
             ),
@@ -444,6 +454,9 @@ def parse_forecast(payload, place=None, units=None) -> Forecast:
             ),
             wind_speed_max=number(
                 series(daily_block, "wind_speed_10m_max", index)
+            ),
+            wind_direction=number(
+                series(daily_block, "wind_direction_10m_dominant", index)
             ),
         ))
 

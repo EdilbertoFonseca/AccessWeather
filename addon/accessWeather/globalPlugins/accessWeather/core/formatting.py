@@ -53,11 +53,40 @@ def format_temperature(value, symbol="") -> str:
     return f"{text} {symbol}".strip()
 
 
-def format_wind(value, symbol="") -> str:
+WIND_DIRECTION_NAMES = (
+    "norte",
+    "nordeste",
+    "leste",
+    "sudeste",
+    "sul",
+    "sudoeste",
+    "oeste",
+    "noroeste",
+)
+
+
+def wind_direction_name(value) -> str:
+    """Nome da direção (rosa dos ventos de 8 pontos) a partir dos graus."""
+    if value is None or isinstance(value, bool):
+        return ""
+    try:
+        degrees = float(value) % 360.0
+    except (TypeError, ValueError):
+        return ""
+    return WIND_DIRECTION_NAMES[int((degrees + 22.5) // 45.0) % 8]
+
+
+def format_wind(value, symbol="", direction=None) -> str:
     text = _number(value, 0)
-    if text == DASH:
+    name = wind_direction_name(direction)
+    parts = []
+    if text != DASH:
+        parts.append(f"{text} {symbol}".strip())
+    if name:
+        parts.append(name)
+    if not parts:
         return DASH
-    return f"{text} {symbol}".strip()
+    return ", ".join(parts)
 
 
 def format_precipitation(value, symbol="", digits=1) -> str:
@@ -143,7 +172,7 @@ def hourly_rows(forecast, symbols, time_format="24h", limit=None) -> list:
             format_temperature(point.temperature, symbols["temperature"]),
             point.description,
             format_percent(point.precipitation_probability),
-            format_wind(point.wind_speed, symbols["wind"]),
+            format_wind(point.wind_speed, symbols["wind"], point.wind_direction),
             format_percent(point.humidity),
         )
         for point in points
@@ -163,7 +192,7 @@ def daily_rows(
             format_temperature(day.temperature_max, symbols["temperature"]),
             format_temperature(day.temperature_min, symbols["temperature"]),
             format_precipitation(day.precipitation_sum, symbols["precipitation"]),
-            format_wind(day.wind_speed_max, symbols["wind"]),
+            format_wind(day.wind_speed_max, symbols["wind"], day.wind_direction),
             format_time(day.sunrise),
             format_time(day.sunset),
         )
@@ -185,7 +214,7 @@ def current_lines(location, forecast, symbols, time_format="24h") -> str:
         " · ".join(
             (
                 f"Sensação {format_temperature(current.apparent_temperature, symbols['temperature'])}",
-                f"Vento {format_wind(current.wind_speed, symbols['wind'])}",
+                f"Vento {format_wind(current.wind_speed, symbols['wind'], current.wind_direction)}",
                 f"Umidade {format_percent(current.humidity)}",
                 f"Chuva {format_precipitation(current.precipitation, symbols['precipitation'])}",
             )
@@ -206,7 +235,7 @@ def current_summary(location, forecast, symbols) -> str:
         format_temperature(current.temperature, symbols["temperature"]),
         current.description,
         f"sensação {format_temperature(current.apparent_temperature, symbols['temperature'])}",
-        f"vento {format_wind(current.wind_speed, symbols['wind'])}",
+        f"vento {format_wind(current.wind_speed, symbols['wind'], current.wind_direction)}",
         f"umidade {format_percent(current.humidity)}",
     ]
     return f"{location.full_label}: " + ", ".join(parts) + "."
@@ -230,7 +259,7 @@ def _notification_part(field, forecast, symbols, time_format="24h"):
         )
     if field == "wind_speed":
         return (
-            f"Vento: {format_wind(current.wind_speed, symbols['wind'])}"
+            f"Vento: {format_wind(current.wind_speed, symbols['wind'], current.wind_direction)}"
             if current else ""
         )
     if field == "humidity":
@@ -289,7 +318,7 @@ def hour_text(point, symbols, time_format="24h") -> str:
         f"{format_temperature(point.temperature, symbols['temperature'])}, "
         f"{point.description}, "
         f"chance de chuva {format_percent(point.precipitation_probability)}, "
-        f"vento {format_wind(point.wind_speed, symbols['wind'])}, "
+        f"vento {format_wind(point.wind_speed, symbols['wind'], point.wind_direction)}, "
         f"umidade {format_percent(point.humidity)}."
     )
 
@@ -301,5 +330,5 @@ def day_text(day, symbols, date_format="dmy", today=None) -> str:
         f"máxima {format_temperature(day.temperature_max, symbols['temperature'])}, "
         f"mínima {format_temperature(day.temperature_min, symbols['temperature'])}, "
         f"chuva {format_precipitation(day.precipitation_sum, symbols['precipitation'])}, "
-        f"vento {format_wind(day.wind_speed_max, symbols['wind'])}."
+        f"vento {format_wind(day.wind_speed_max, symbols['wind'], day.wind_direction)}."
     )

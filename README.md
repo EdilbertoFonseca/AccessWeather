@@ -33,6 +33,7 @@ de toques dispara.
 - Anúncios automáticos por local, em intervalo ajustável (1 a 360 minutos).
 - Sequências de beeps por local e beeps globais antes do anúncio de 1 toque.
 - Cache offline e formatação em português.
+- Velocidade e direção do vento (rosa dos ventos de 8 pontos).
 - Unidades (métrico/imperial), vento, formato de hora e de data configuráveis.
 
 ## Dados
